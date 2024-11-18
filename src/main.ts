@@ -13,27 +13,29 @@ import _luck from "./luck.ts";
 
 // Page Element Setup
 const gameTitle: string = "Geocoins";
+let app = document.getElementById("app");
+if (!app) {
+  app = document.createElement("div");
+  app.id = "app";
+}
 
 document.title = gameTitle;
 const header = document.createElement("h1");
 header.textContent = gameTitle;
-document.body.appendChild(header);
-
-const gameContainer = document.createElement("div");
-document.body.appendChild(gameContainer);
+app.appendChild(header);
 
 const gameControlContainer = document.createElement("div");
-gameContainer.appendChild(gameControlContainer);
+app.appendChild(gameControlContainer);
 
 const gameMap = document.createElement("div");
 gameMap.id = "map";
-gameContainer.appendChild(gameMap);
+app.appendChild(gameMap);
 
 const cacheContainer = document.createElement("div");
-gameContainer.appendChild(cacheContainer);
+app.appendChild(cacheContainer);
 
 const inventoryContainer = document.createElement("div");
-gameContainer.appendChild(inventoryContainer);
+app.appendChild(inventoryContainer);
 
 // UI Elements
 const geolocationButton = document.createElement("button");
@@ -108,3 +110,32 @@ function _depositCoin(coin: coin, cache: cache) {
   cache.coins.push(coin);
   cache.coinCount++;
 }
+
+// Map Generation
+const OAKES_CLASSROOM = { lat: 36.9785, lng: -122.0308 };
+const _TILE_DEGREES = 1e-4;
+const GAMEPLAY_ZOOM_LEVEL = 19;
+
+const map = leaflet.map(gameMap, {
+  center: OAKES_CLASSROOM,
+  zoom: GAMEPLAY_ZOOM_LEVEL,
+  minZoom: GAMEPLAY_ZOOM_LEVEL,
+  maxZoom: GAMEPLAY_ZOOM_LEVEL,
+  zoomControl: false,
+  scrollWheelZoom: false,
+});
+
+leaflet
+  .tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution:
+      '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  })
+  .addTo(map);
+
+const playerPosition = leaflet.marker(OAKES_CLASSROOM); // TO BE ADJUSTED
+playerPosition.bindTooltip("That's you!");
+playerPosition.addTo(map);
+
+// NEXT COMMIT, THIS NEEDS TO BE PLAYABLE
+// NEEDS TO SPAWN CACHES
