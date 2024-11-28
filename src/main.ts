@@ -37,7 +37,7 @@ app.appendChild(cacheContainer);
 const inventoryContainer = document.createElement("div");
 app.appendChild(inventoryContainer);
 
-// UI Elements
+// UI Elements - For D3.c - D3.d
 const geolocationButton = document.createElement("button");
 geolocationButton.textContent = "🌐";
 gameControlContainer.appendChild(geolocationButton);
@@ -62,14 +62,10 @@ const resetButton = document.createElement("button");
 resetButton.textContent = "🚮";
 gameControlContainer.appendChild(resetButton);
 
-// Inventory and Cache Elements (TO BE ADJUSTED)
+// Inventory and Cache Elements
 const userInventory = document.createElement("div");
 userInventory.textContent = "Inventory";
 inventoryContainer.appendChild(userInventory);
-
-const cacheInventory = document.createElement("div");
-cacheInventory.textContent = "Caches";
-cacheContainer.appendChild(cacheInventory);
 
 // Interfaces and Classes
 interface cell {
@@ -88,71 +84,16 @@ interface coin {
   serial: number;
 }
 
-interface MapService {
-  initialize(parentElement: HTMLElement, center: cell, zoom: number): void;
-  setView(center: cell, zoom: number): void;
-  addMarker(position: cell, popupElement: HTMLElement): void;
-  addRectangle(bounds: cell[]): void;
-  clear(): void;
-}
-
-class LeafletMapService implements MapService {
-  private map: leaflet.Map;
-
-  constructor() {
-    this.map = leaflet.map("map", {
-      center: [0, 0],
-      zoom: 1,
-      minZoom: 1,
-      maxZoom: 19,
-      zoomControl: false,
-      scrollWheelZoom: false,
-    });
-    leaflet.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution:
-        '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    }).addTo(this.map);
-  }
-
-  initialize(parentElement: HTMLElement, center: cell, zoom: number): void {
-    parentElement.innerHTML = "<div id='map' style='height: 100%;'></div>";
-    this.map.setView([center.i, center.j], zoom);
-    leaflet.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution:
-        '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    }).addTo(this.map);
-  }
-
-  setView(center: cell, zoom: number): void {
-    this.map.setView([center.i, center.j], zoom);
-  }
-
-  addMarker(position: cell, popupElement: HTMLElement): void {
-    leaflet.marker([position.i, position.j]).bindPopup(popupElement).addTo(
-      this.map,
-    );
-  }
-
-  addRectangle(bounds: cell[]): void {
-    leaflet.rectangle([[bounds[0].i, bounds[0].j], [bounds[1].i, bounds[1].j]])
-      .addTo(this.map);
-  }
-
-  clear(): void {
-    this.map.remove();
-  }
-}
 // Map Variables
 const _ORIGIN: cell = { i: 0, j: 0 };
-const _TILE_DEGREES: number = 1e-4;
+const TILE_DEGREES: number = 1e-4;
 const GAMEPLAY_ZOOM_LEVEL: number = 19;
 const NEIGHBORHOOD_SIZE: number = 8;
-const map: LeafletMapService = new LeafletMapService();
+//const map: LeafletMapService = new LeafletMapService();
 
 // Cache Variables
 const CACHE_SPAWN_PROBABILITY: number = 0.1;
-const caches: cache[] = [];
+const _caches: cache[] = [];
 
 // Game Variables
 const _userPosition: cell = { i: 0, j: 0 };
@@ -160,122 +101,106 @@ const _inventory: coin[] = [];
 let coinCount: number = 0;
 
 // Events
-const inventory_changed: Event = new Event("inventory_changed");
-const cache_changed: Event = new Event("cache_changed");
+const _inventory_changed: Event = new Event("inventory_changed");
+const _cache_changed: Event = new Event("cache_changed");
 
 // D3A Variables
-const OAKES_CLASSROOM: cell = { i: 36.98949379578401, j: -122.06277128548504 };
-const ORIGIN: cell = OAKES_CLASSROOM;
+const _OAKES_CLASSROOM: cell = { i: 36.98949379578401, j: -122.06277128548504 };
+//const ORIGIN: cell = _OAKES_CLASSROOM;
 
-// Inventory Functions
-function takeCoin(cache: cache): void {
-  if (cache.coinCount > 0) {
-    coinCount++;
-    cache.coinCount--;
-    dispatchEvent(inventory_changed);
-    dispatchEvent(cache_changed);
-  }
+const OAKES_CLASSROOM = leaflet.latLng(36.98949379578401, -122.06277128548504);
+
+const map = leaflet.map(document.getElementById("map")!, {
+  center: OAKES_CLASSROOM,
+  zoom: GAMEPLAY_ZOOM_LEVEL,
+  minZoom: GAMEPLAY_ZOOM_LEVEL,
+  maxZoom: GAMEPLAY_ZOOM_LEVEL,
+  zoomControl: false,
+  scrollWheelZoom: false,
+});
+
+leaflet
+  .tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution:
+      '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  })
+  .addTo(map);
+
+const playerMarker = leaflet.marker(OAKES_CLASSROOM);
+playerMarker.bindTooltip("That's you!");
+playerMarker.addTo(map);
+
+function spawnCache(i: number, j: number) {
+  // Convert cell numbers into lat/lng bounds
+  const origin = OAKES_CLASSROOM;
+  const bounds = leaflet.latLngBounds([
+    [origin.lat + i * TILE_DEGREES, origin.lng + j * TILE_DEGREES],
+    [origin.lat + (i + 1) * TILE_DEGREES, origin.lng + (j + 1) * TILE_DEGREES],
+  ]);
+
+  // Add a rectangle to the map to represent the cache
+  const rect = leaflet.rectangle(bounds);
+  rect.addTo(map);
+
+  // Handle interactions with the cache
+  rect.bindPopup(() => {
+    let pointValue = Math.floor(luck([i, j, "initialValue"].toString()) * 10);
+
+    const popupDiv = document.createElement("div");
+    popupDiv.innerHTML = `
+                <div>There is a cache here at "${i},${j}". It has <span id="value">${pointValue}</span> coins.</div>`;
+    const takeCoinButton = document.createElement("button");
+    takeCoinButton.textContent = "Take coin";
+    takeCoinButton.id = "poke";
+    popupDiv.append(takeCoinButton);
+    const addCoinButton = document.createElement("button");
+    addCoinButton.textContent = "Add coin";
+    addCoinButton.id = "unpoke";
+    popupDiv.append(addCoinButton);
+    addCoinButton.disabled = coinCount === 0;
+    // Clicking the button decrements the cache's value and increments the player's points
+    takeCoinButton.addEventListener("click", () => {
+      if (pointValue > 0) {
+        pointValue--;
+        popupDiv.querySelector<HTMLSpanElement>("#value")!.innerHTML =
+          pointValue.toString();
+        coinCount++;
+        updateInventory();
+        takeCoinButton.disabled = pointValue === 0;
+      }
+    });
+    addCoinButton.addEventListener("click", () => {
+      if (coinCount > 0) {
+        pointValue++;
+        popupDiv.querySelector<HTMLSpanElement>("#value")!.innerHTML =
+          pointValue.toString();
+        coinCount--;
+        updateInventory();
+        addCoinButton.disabled = coinCount === 0;
+      }
+    });
+    return popupDiv;
+  });
 }
 
-function depositCoin(cache: cache): void {
-  if (coinCount > 0) {
-    coinCount--;
-    cache.coinCount++;
-    dispatchEvent(inventory_changed);
-    dispatchEvent(cache_changed);
+function checkForCaches(): void {
+  for (let i = -NEIGHBORHOOD_SIZE; i < NEIGHBORHOOD_SIZE; i++) {
+    for (let j = -NEIGHBORHOOD_SIZE; j < NEIGHBORHOOD_SIZE; j++) {
+      // If location i,j is lucky enough, spawn a cache!
+      if (luck([i, j].toString()) < CACHE_SPAWN_PROBABILITY) {
+        spawnCache(i, j);
+      }
+    }
   }
 }
 
 function updateInventory(): void {
   userInventory.textContent = `Inventory: ${coinCount}`;
 }
-
-addEventListener("inventory_changed", updateInventory);
-
-// Cache Functions
-function checkForCaches(): void {
-  for (let i = -NEIGHBORHOOD_SIZE; i < NEIGHBORHOOD_SIZE; i++) {
-    for (let j = -NEIGHBORHOOD_SIZE; j < NEIGHBORHOOD_SIZE; j++) {
-      // If location i,j is lucky enough, spawn a cache!
-      if (luck([i, j].toString()) < CACHE_SPAWN_PROBABILITY) {
-        const newCacheCell = { i: i, j: j };
-        const newCache = generateCache(newCacheCell);
-        caches.push(newCache);
-        placeCache(newCache);
-      }
-    }
-  }
-}
-
-function generateCache(cacheCell: cell): cache {
-  const coinCount = Math.floor(
-    luck([cacheCell.i, cacheCell.j, "initialValue"].toString()) * 10,
-  );
-  // const coins: coin[] = FUNCTION TO GENERATE UNIQUE COINS (NYI)
-  const newCache: cache = {
-    cell: cacheCell,
-    coinCount: coinCount,
-    coins: [],
-  };
-  return newCache;
-}
-
-function placePlayer(location: cell): void {
-  const playerDiv = document.createElement("div");
-  playerDiv.textContent = "You are here!";
-  map.addMarker(location, playerDiv);
-}
-
-function placeCache(cache: cache): void {
-  const cacheDiv = makeCachePopup(cache);
-  map.addMarker(cache.cell, cacheDiv);
-}
-
-function makeCachePopup(cache: cache): HTMLElement {
-  const cacheDiv = document.createElement("div");
-  const cacheText = document.createElement("p");
-  cacheText.textContent =
-    `There is a cache here at "${cache.cell.i}, ${cache.cell.j}". It has value ${cache.coinCount}.`;
-  cacheDiv.appendChild(cacheText);
-  const takeCoinButton = makeWithdrawalButton(cache);
-  cacheDiv.appendChild(takeCoinButton);
-  const depositCoinButton = makeDepositButton(cache);
-  cacheDiv.appendChild(depositCoinButton);
-  cacheDiv.addEventListener("cache_changed", function () {
-    updateCacheInventory(cache);
-  });
-  return cacheDiv;
-}
-
-function makeWithdrawalButton(cache: cache): HTMLElement {
-  const takeCoinButton = document.createElement("button");
-  takeCoinButton.textContent = "Take Coin";
-  takeCoinButton.addEventListener("click", () => {
-    takeCoin(cache);
-  });
-  return takeCoinButton;
-}
-
-function makeDepositButton(cache: cache): HTMLElement {
-  const depositCoinButton = document.createElement("button");
-  depositCoinButton.textContent = "Deposit Coin";
-  depositCoinButton.addEventListener("click", () => {
-    depositCoin(cache);
-  });
-  return depositCoinButton;
-}
-
-function updateCacheInventory(cache: cache): void {
-  const cacheDiv = makeCachePopup(cache);
-  map.addMarker(cache.cell, cacheDiv);
-}
-
-addEventListener("cache_changed", () => {
-  caches.forEach((cache: cache) => {
-    updateCacheInventory(cache);
-  });
-});
-
-map.initialize(gameMap, ORIGIN, GAMEPLAY_ZOOM_LEVEL);
-placePlayer(_userPosition);
+updateInventory();
 checkForCaches();
+
+// CURRENT ISSUES
+// -Buttons on cache popups don't change cache coin count persistently
+// -Buttons on cache popups only check coin count/cache value on load
