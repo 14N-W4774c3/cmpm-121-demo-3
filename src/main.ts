@@ -96,6 +96,9 @@ class Geocache implements cache {
       luck([cell.i, cell.j, "initialValue"].toString()) * 10,
     );
     this.coins = [];
+    for (let i = 0; i < this.coinCount; i++) {
+      this.coins.push({ cell: cell, serial: i });
+    }
   }
 
   display() {
@@ -135,9 +138,12 @@ const CACHE_SPAWN_PROBABILITY: number = 0.1;
 const caches = new Map<cell, Geocache>();
 
 // Game Variables
-let playerCoinCount: number = 0;
-
-const OAKES_CLASSROOM: cell = { i: 369894, j: -1220627 };
+const playerInventory: cache = {
+  cell: { i: 0, j: 0 },
+  coinCount: 0,
+  coins: [],
+};
+const playerLocation: cell = { i: 369894, j: -1220627 };
 
 function cellToLeaflet(cell: cell): leaflet.LatLng {
   return leaflet.latLng(
@@ -147,7 +153,7 @@ function cellToLeaflet(cell: cell): leaflet.LatLng {
 }
 
 const map = leaflet.map(document.getElementById("map")!, {
-  center: cellToLeaflet(OAKES_CLASSROOM),
+  center: cellToLeaflet(playerLocation),
   zoom: GAMEPLAY_ZOOM_LEVEL,
   minZoom: GAMEPLAY_ZOOM_LEVEL,
   maxZoom: GAMEPLAY_ZOOM_LEVEL,
@@ -163,7 +169,7 @@ leaflet
   })
   .addTo(map);
 
-const playerMarker = leaflet.marker(cellToLeaflet(OAKES_CLASSROOM));
+const playerMarker = leaflet.marker(cellToLeaflet(playerLocation));
 playerMarker.bindTooltip("That's you!");
 playerMarker.addTo(map);
 
@@ -195,7 +201,7 @@ function spawnCache(cell: cell): void {
     popupDiv.append(takeCoinButton);
     const addCoinButton = makeButton("Add coin", () => addCoin(newCache));
     popupDiv.append(addCoinButton);
-    addCoinButton.disabled = playerCoinCount === 0;
+    addCoinButton.disabled = playerInventory.coinCount === 0;
     takeCoinButton.disabled = newCache.coinCount === 0;
     return popupDiv;
   });
@@ -205,14 +211,14 @@ function checkForCaches(): void {
   for (let i = -NEIGHBORHOOD_SIZE; i < NEIGHBORHOOD_SIZE; i++) {
     for (let j = -NEIGHBORHOOD_SIZE; j < NEIGHBORHOOD_SIZE; j++) {
       if (luck([i, j].toString()) < CACHE_SPAWN_PROBABILITY) {
-        spawnCache({ i: OAKES_CLASSROOM.i + i, j: OAKES_CLASSROOM.j + j });
+        spawnCache({ i: playerLocation.i + i, j: playerLocation.j + j });
       }
     }
   }
 }
 
 function updateInventory(): void {
-  userInventory.textContent = `Inventory: ${playerCoinCount} coins`;
+  userInventory.textContent = `Inventory: ${playerInventory.coinCount} coins`;
 }
 
 function refreshPopup(cache: Geocache): void {
@@ -224,7 +230,7 @@ function refreshPopup(cache: Geocache): void {
       popupDiv.append(takeCoinButton);
       const addCoinButton = makeButton("Add coin", () => addCoin(cache));
       popupDiv.append(addCoinButton);
-      addCoinButton.disabled = playerCoinCount === 0;
+      addCoinButton.disabled = playerInventory.coinCount === 0;
       takeCoinButton.disabled = cache.coinCount === 0;
       return popupDiv;
     });
@@ -239,9 +245,9 @@ function makeButton(buttonText: string, action: () => void): HTMLButtonElement {
 }
 
 function addCoin(cache: Geocache): void {
-  if (playerCoinCount > 0) {
+  if (playerInventory.coinCount > 0) {
     cache.coinCount++;
-    playerCoinCount--;
+    playerInventory.coinCount--;
     updateInventory();
     refreshPopup(cache);
   }
@@ -250,7 +256,7 @@ function addCoin(cache: Geocache): void {
 function takeCoin(cache: Geocache): void {
   if (cache.coinCount > 0) {
     cache.coinCount--;
-    playerCoinCount++;
+    playerInventory.coinCount++;
     updateInventory();
     refreshPopup(cache);
   }
