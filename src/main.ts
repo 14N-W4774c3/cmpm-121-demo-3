@@ -84,6 +84,46 @@ interface coin {
   serial: number;
 }
 
+class geocache implements cache {
+  cell: cell;
+  coinCount: number;
+  coins: coin[];
+  popup: leaflet.Popup | null = null;
+
+  constructor(cell: cell) {
+    this.cell = cell;
+    this.coinCount = Math.floor(
+      luck([cell.i, cell.j, "initialValue"].toString()) * 10,
+    );
+    this.coins = [];
+  }
+
+  display() {
+    const cacheDiv = document.createElement("div");
+    cacheDiv.textContent =
+      `Cache at ${this.cell.i}, ${this.cell.j} has ${this.coinCount} coins.`;
+    return cacheDiv;
+  }
+
+  addCoin() {
+    this.coinCount++;
+  }
+
+  takeCoin() {
+    this.coinCount--;
+  }
+
+  setPopup(popup: leaflet.Popup) {
+    this.popup = popup;
+  }
+
+  openPopup() {
+    if (this.popup) {
+      this.popup.openPopup();
+    }
+  }
+}
+
 // Map Variables
 const _ORIGIN: cell = { i: 0, j: 0 };
 const TILE_DEGREES: number = 1e-4;
@@ -93,12 +133,12 @@ const NEIGHBORHOOD_SIZE: number = 8;
 
 // Cache Variables
 const CACHE_SPAWN_PROBABILITY: number = 0.1;
-const _caches: cache[] = [];
+const caches = new Map<cell, geocache>();
 
 // Game Variables
 const _userPosition: cell = { i: 0, j: 0 };
 const _inventory: coin[] = [];
-let coinCount: number = 0;
+let playerCoinCount: number = 0;
 
 // Events
 const _inventory_changed: Event = new Event("inventory_changed");
@@ -132,6 +172,12 @@ playerMarker.bindTooltip("That's you!");
 playerMarker.addTo(map);
 
 function spawnCache(i: number, j: number) {
+  let newCache = caches.get({ i, j });
+  if (!newCache) {
+    newCache = new geocache({ i, j });
+    caches.set({ i, j }, newCache);
+  }
+
   // Convert cell numbers into lat/lng bounds
   const origin = OAKES_CLASSROOM;
   const bounds = leaflet.latLngBounds([
@@ -143,41 +189,31 @@ function spawnCache(i: number, j: number) {
   const rect = leaflet.rectangle(bounds);
   rect.addTo(map);
 
-  // Handle interactions with the cache
   rect.bindPopup(() => {
-    let pointValue = Math.floor(luck([i, j, "initialValue"].toString()) * 10);
-
     const popupDiv = document.createElement("div");
-    popupDiv.innerHTML = `
-                <div>There is a cache here at "${i},${j}". It has <span id="value">${pointValue}</span> coins.</div>`;
+    popupDiv.append(newCache.display());
     const takeCoinButton = document.createElement("button");
     takeCoinButton.textContent = "Take coin";
-    takeCoinButton.id = "poke";
     popupDiv.append(takeCoinButton);
     const addCoinButton = document.createElement("button");
     addCoinButton.textContent = "Add coin";
-    addCoinButton.id = "unpoke";
     popupDiv.append(addCoinButton);
-    addCoinButton.disabled = coinCount === 0;
-    // Clicking the button decrements the cache's value and increments the player's points
+    addCoinButton.disabled = playerCoinCount === 0;
+    takeCoinButton.disabled = newCache.coinCount === 0;
     takeCoinButton.addEventListener("click", () => {
-      if (pointValue > 0) {
-        pointValue--;
-        popupDiv.querySelector<HTMLSpanElement>("#value")!.innerHTML =
-          pointValue.toString();
-        coinCount++;
+      if (newCache.coinCount > 0) {
+        newCache.takeCoin();
+        playerCoinCount++;
         updateInventory();
-        takeCoinButton.disabled = pointValue === 0;
+        refreshPopup(newCache);
       }
     });
     addCoinButton.addEventListener("click", () => {
-      if (coinCount > 0) {
-        pointValue++;
-        popupDiv.querySelector<HTMLSpanElement>("#value")!.innerHTML =
-          pointValue.toString();
-        coinCount--;
+      if (playerCoinCount > 0) {
+        newCache.addCoin();
+        playerCoinCount--;
         updateInventory();
-        addCoinButton.disabled = coinCount === 0;
+        refreshPopup(newCache);
       }
     });
     return popupDiv;
@@ -187,7 +223,6 @@ function spawnCache(i: number, j: number) {
 function checkForCaches(): void {
   for (let i = -NEIGHBORHOOD_SIZE; i < NEIGHBORHOOD_SIZE; i++) {
     for (let j = -NEIGHBORHOOD_SIZE; j < NEIGHBORHOOD_SIZE; j++) {
-      // If location i,j is lucky enough, spawn a cache!
       if (luck([i, j].toString()) < CACHE_SPAWN_PROBABILITY) {
         spawnCache(i, j);
       }
@@ -196,11 +231,46 @@ function checkForCaches(): void {
 }
 
 function updateInventory(): void {
-  userInventory.textContent = `Inventory: ${coinCount}`;
+  userInventory.textContent = `Inventory: ${playerCoinCount} coins`;
+}
+
+function refreshPopup(cache: geocache): void {
+  if (cache.popup) {
+    cache.popup.setContent(() => {
+      const popupDiv = document.createElement("div");
+      popupDiv.append(cache.display());
+      const takeCoinButton = document.createElement("button");
+      takeCoinButton.textContent = "Take coin";
+      popupDiv.append(takeCoinButton);
+      const addCoinButton = document.createElement("button");
+      addCoinButton.textContent = "Add coin";
+      popupDiv.append(addCoinButton);
+      addCoinButton.disabled = playerCoinCount === 0;
+      takeCoinButton.disabled = cache.coinCount === 0;
+      takeCoinButton.addEventListener("click", () => {
+        if (cache.coinCount > 0) {
+          cache.takeCoin();
+          playerCoinCount++;
+          updateInventory();
+          refreshPopup(cache);
+          takeCoinButton.disabled = cache.coinCount === 0;
+        }
+      });
+      addCoinButton.addEventListener("click", () => {
+        if (playerCoinCount > 0) {
+          cache.addCoin();
+          playerCoinCount--;
+          updateInventory();
+          refreshPopup(cache);
+          addCoinButton.disabled = playerCoinCount === 0;
+        }
+      });
+      return popupDiv;
+    });
+  }
 }
 updateInventory();
 checkForCaches();
 
 // CURRENT ISSUES
-// -Buttons on cache popups don't change cache coin count persistently
-// -Buttons on cache popups only check coin count/cache value on load
+// -Popup does not update on button press, but on reopening the popup
