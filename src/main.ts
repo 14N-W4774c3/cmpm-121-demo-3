@@ -128,6 +128,7 @@ class Geocache implements cache {
 const TILE_DEGREES: number = 1e-4;
 const GAMEPLAY_ZOOM_LEVEL: number = 19;
 const NEIGHBORHOOD_SIZE: number = 8;
+const ORIGIN: cell = { i: 0, j: 0 };
 
 // Cache Variables
 const CACHE_SPAWN_PROBABILITY: number = 0.1;
@@ -136,11 +137,17 @@ const caches = new Map<cell, Geocache>();
 // Game Variables
 let playerCoinCount: number = 0;
 
-// D3A Variables
-const OAKES_CLASSROOM = leaflet.latLng(36.98949379578401, -122.06277128548504);
+const OAKES_CLASSROOM: cell = { i: 369894, j: -1220627 };
+
+function cellToLeaflet(cell: cell): leaflet.LatLng {
+  return leaflet.latLng(
+    ORIGIN.i + cell.i * TILE_DEGREES,
+    ORIGIN.j + cell.j * TILE_DEGREES,
+  );
+}
 
 const map = leaflet.map(document.getElementById("map")!, {
-  center: OAKES_CLASSROOM,
+  center: cellToLeaflet(OAKES_CLASSROOM),
   zoom: GAMEPLAY_ZOOM_LEVEL,
   minZoom: GAMEPLAY_ZOOM_LEVEL,
   maxZoom: GAMEPLAY_ZOOM_LEVEL,
@@ -156,7 +163,7 @@ leaflet
   })
   .addTo(map);
 
-const playerMarker = leaflet.marker(OAKES_CLASSROOM);
+const playerMarker = leaflet.marker(cellToLeaflet(OAKES_CLASSROOM));
 playerMarker.bindTooltip("That's you!");
 playerMarker.addTo(map);
 
@@ -168,12 +175,12 @@ function spawnCache(cell: cell): void {
   }
 
   // Convert cell numbers into lat/lng bounds
-  const origin = OAKES_CLASSROOM;
+  const origin = ORIGIN;
   const bounds = leaflet.latLngBounds([
-    [origin.lat + cell.i * TILE_DEGREES, origin.lng + cell.j * TILE_DEGREES],
+    [origin.i + cell.i * TILE_DEGREES, origin.j + cell.j * TILE_DEGREES],
     [
-      origin.lat + (cell.i + 1) * TILE_DEGREES,
-      origin.lng + (cell.j + 1) * TILE_DEGREES,
+      origin.i + (cell.i + 1) * TILE_DEGREES,
+      origin.j + (cell.j + 1) * TILE_DEGREES,
     ],
   ]);
 
@@ -198,7 +205,7 @@ function checkForCaches(): void {
   for (let i = -NEIGHBORHOOD_SIZE; i < NEIGHBORHOOD_SIZE; i++) {
     for (let j = -NEIGHBORHOOD_SIZE; j < NEIGHBORHOOD_SIZE; j++) {
       if (luck([i, j].toString()) < CACHE_SPAWN_PROBABILITY) {
-        spawnCache({ i, j });
+        spawnCache({ i: OAKES_CLASSROOM.i + i, j: OAKES_CLASSROOM.j + j });
       }
     }
   }
