@@ -84,7 +84,7 @@ interface coin {
   serial: number;
 }
 
-class geocache implements cache {
+class Geocache implements cache {
   cell: cell;
   coinCount: number;
   coins: coin[];
@@ -131,7 +131,7 @@ const NEIGHBORHOOD_SIZE: number = 8;
 
 // Cache Variables
 const CACHE_SPAWN_PROBABILITY: number = 0.1;
-const caches = new Map<cell, geocache>();
+const caches = new Map<cell, Geocache>();
 
 // Game Variables
 let playerCoinCount: number = 0;
@@ -163,7 +163,7 @@ playerMarker.addTo(map);
 function spawnCache(cell: cell): void {
   let newCache = caches.get(cell);
   if (!newCache) {
-    newCache = new geocache(cell);
+    newCache = new Geocache(cell);
     caches.set(cell, newCache);
   }
 
@@ -184,30 +184,12 @@ function spawnCache(cell: cell): void {
   rect.bindPopup(() => {
     const popupDiv = document.createElement("div");
     popupDiv.append(newCache.display());
-    const takeCoinButton = document.createElement("button");
-    takeCoinButton.textContent = "Take coin";
+    const takeCoinButton = makeButton("Take coin", () => takeCoin(newCache));
     popupDiv.append(takeCoinButton);
-    const addCoinButton = document.createElement("button");
-    addCoinButton.textContent = "Add coin";
+    const addCoinButton = makeButton("Add coin", () => addCoin(newCache));
     popupDiv.append(addCoinButton);
     addCoinButton.disabled = playerCoinCount === 0;
     takeCoinButton.disabled = newCache.coinCount === 0;
-    takeCoinButton.addEventListener("click", () => {
-      if (newCache.coinCount > 0) {
-        newCache.takeCoin();
-        playerCoinCount++;
-        updateInventory();
-        refreshPopup(newCache);
-      }
-    });
-    addCoinButton.addEventListener("click", () => {
-      if (playerCoinCount > 0) {
-        newCache.addCoin();
-        playerCoinCount--;
-        updateInventory();
-        refreshPopup(newCache);
-      }
-    });
     return popupDiv;
   });
 }
@@ -226,41 +208,47 @@ function updateInventory(): void {
   userInventory.textContent = `Inventory: ${playerCoinCount} coins`;
 }
 
-function refreshPopup(cache: geocache): void {
+function refreshPopup(cache: Geocache): void {
   if (cache.popup) {
     cache.popup.setContent(() => {
       const popupDiv = document.createElement("div");
       popupDiv.append(cache.display());
-      const takeCoinButton = document.createElement("button");
-      takeCoinButton.textContent = "Take coin";
+      const takeCoinButton = makeButton("Take coin", () => takeCoin(cache));
       popupDiv.append(takeCoinButton);
-      const addCoinButton = document.createElement("button");
-      addCoinButton.textContent = "Add coin";
+      const addCoinButton = makeButton("Add coin", () => addCoin(cache));
       popupDiv.append(addCoinButton);
       addCoinButton.disabled = playerCoinCount === 0;
       takeCoinButton.disabled = cache.coinCount === 0;
-      takeCoinButton.addEventListener("click", () => {
-        if (cache.coinCount > 0) {
-          cache.takeCoin();
-          playerCoinCount++;
-          updateInventory();
-          refreshPopup(cache);
-          takeCoinButton.disabled = cache.coinCount === 0;
-        }
-      });
-      addCoinButton.addEventListener("click", () => {
-        if (playerCoinCount > 0) {
-          cache.addCoin();
-          playerCoinCount--;
-          updateInventory();
-          refreshPopup(cache);
-          addCoinButton.disabled = playerCoinCount === 0;
-        }
-      });
       return popupDiv;
     });
   }
 }
+
+function makeButton(buttonText: string, action: () => void): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.textContent = buttonText;
+  button.addEventListener("click", action);
+  return button;
+}
+
+function addCoin(cache: Geocache): void {
+  if (playerCoinCount > 0) {
+    cache.coinCount++;
+    playerCoinCount--;
+    updateInventory();
+    refreshPopup(cache);
+  }
+}
+
+function takeCoin(cache: Geocache): void {
+  if (cache.coinCount > 0) {
+    cache.coinCount--;
+    playerCoinCount++;
+    updateInventory();
+    refreshPopup(cache);
+  }
+}
+
 updateInventory();
 checkForCaches();
 
