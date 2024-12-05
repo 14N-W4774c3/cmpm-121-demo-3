@@ -129,6 +129,18 @@ class Geocache implements cache {
       this.coins.push({ cell: this.cell, serial: i });
     }
   }
+
+  toMomento(): string {
+    return JSON.stringify(this);
+  }
+
+  static fromMomento(momento: string): Geocache {
+    const cacheData = JSON.parse(momento);
+    const newCache = new Geocache(cacheData.cell);
+    newCache.coinCount = cacheData.coinCount;
+    newCache.coins = cacheData.coins;
+    return newCache;
+  }
 }
 
 // ----------Variables---------------------------------------
