@@ -256,6 +256,31 @@ function checkForCaches(): void {
   });
 }
 
+function movePlayer(newLocation: cell): void {
+  playerLocation.i = newLocation.i;
+  playerLocation.j = newLocation.j;
+  playerMarker.setLatLng(cellToLeaflet(playerLocation));
+  checkForCaches();
+}
+
+// ----------Event Handlers----------------------------------
+
+upButton.addEventListener("click", () => {
+  movePlayer({ i: playerLocation.i + 1, j: playerLocation.j });
+});
+
+downButton.addEventListener("click", () => {
+  movePlayer({ i: playerLocation.i - 1, j: playerLocation.j });
+});
+
+leftButton.addEventListener("click", () => {
+  movePlayer({ i: playerLocation.i, j: playerLocation.j - 1 });
+});
+
+rightButton.addEventListener("click", () => {
+  movePlayer({ i: playerLocation.i, j: playerLocation.j + 1 });
+});
+
 // ----------Game Logic--------------------------------------
 
 const map = leaflet.map(document.getElementById("map")!, {
