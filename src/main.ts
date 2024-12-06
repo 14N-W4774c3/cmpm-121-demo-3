@@ -154,6 +154,7 @@ const TILE_DEGREES: number = 1e-4;
 const GAMEPLAY_ZOOM_LEVEL: number = 19;
 const NEIGHBORHOOD_SIZE: number = 8;
 const ORIGIN: cell = { i: 0, j: 0 };
+const DEFAULT_LOCATION: cell = { i: 369894, j: -1220627 };
 
 const CACHE_SPAWN_PROBABILITY: number = 0.1;
 const activeCaches: Map<cell, Geocache> = new Map<cell, Geocache>();
@@ -164,7 +165,7 @@ const cacheRects: Map<cell, leaflet.Rectangle> = new Map<
 const storedCaches: Map<cell, string> = new Map<cell, string>();
 
 const playerLocation: cell = { i: 369894, j: -1220627 };
-const playerInventory: Geocache = new Geocache(playerLocation);
+let playerInventory: Geocache = new Geocache(playerLocation);
 
 let geolocationActive: boolean = false;
 
@@ -303,6 +304,7 @@ function cullCaches(): void {
 function movePlayer(newLocation: cell): void {
   playerLocation.i = newLocation.i;
   playerLocation.j = newLocation.j;
+  playerInventory.cell = playerLocation;
   playerMarker.setLatLng(cellToLeaflet(playerLocation));
   cullCaches();
   map.panTo(cellToLeaflet(playerLocation));
@@ -325,7 +327,8 @@ function resetGame(): void {
   playerInventory.coinCount = 0;
   playerInventory.coins = [];
   updateInventory();
-  movePlayer({ i: 0, j: 0 });
+  localStorage.clear();
+  movePlayer(DEFAULT_LOCATION);
 }
 
 function geolocatePlayer(): void {
@@ -345,6 +348,34 @@ function updateGame(): void {
   requestAnimationFrame(updateGame);
 }
 
+function saveGame(): void {
+  const cacheMomentos: string[] = [];
+  activeCaches.forEach((cache) => {
+    cacheMomentos.push(cache.toMomento());
+  });
+  storedCaches.forEach((cacheMomento) => {
+    cacheMomentos.push(cacheMomento);
+  });
+  localStorage.setItem("caches", JSON.stringify(cacheMomentos));
+  localStorage.setItem("inventory", playerInventory.toMomento());
+}
+
+function loadGame(): void {
+  const playerInventoryMomento = localStorage.getItem("inventory");
+  if (playerInventoryMomento) {
+    playerInventory = Geocache.fromMomento(playerInventoryMomento);
+  }
+  const cacheMomentos = localStorage.getItem("caches");
+  if (cacheMomentos) {
+    const cacheData = JSON.parse(cacheMomentos);
+    cacheData.forEach((cacheMomento: string) => {
+      const newCache = Geocache.fromMomento(cacheMomento);
+      activeCaches.set(newCache.cell, newCache);
+      spawnCache(newCache.cell);
+    });
+  }
+  cullCaches();
+}
 // ----------Event Handlers----------------------------------
 
 geolocationButton.addEventListener("click", () => {
@@ -393,9 +424,17 @@ leaflet
   })
   .addTo(map);
 
+if (localStorage.getItem("caches")) {
+  loadGame();
+}
+
 const playerMarker = leaflet.marker(cellToLeaflet(playerLocation));
 playerMarker.bindTooltip("That's you!");
 playerMarker.addTo(map);
+
+globalThis.addEventListener("beforeunload", () => {
+  saveGame();
+});
 
 updateInventory();
 checkForCaches();
