@@ -131,7 +131,12 @@ class Geocache implements cache {
   }
 
   toMomento(): string {
-    return JSON.stringify(this);
+    const cacheData = {
+      cell: this.cell,
+      coinCount: this.coinCount,
+      coins: this.coins,
+    };
+    return JSON.stringify(cacheData);
   }
 
   static fromMomento(momento: string): Geocache {
@@ -151,7 +156,12 @@ const NEIGHBORHOOD_SIZE: number = 8;
 const ORIGIN: cell = { i: 0, j: 0 };
 
 const CACHE_SPAWN_PROBABILITY: number = 0.1;
-const caches = new Map<cell, Geocache>();
+const activeCaches: Map<cell, Geocache> = new Map<cell, Geocache>();
+const cacheRects: Map<cell, leaflet.Rectangle> = new Map<
+  cell,
+  leaflet.Rectangle
+>();
+const storedCaches: Map<cell, string> = new Map<cell, string>();
 
 const playerLocation: cell = { i: 369894, j: -1220627 };
 const playerInventory: Geocache = new Geocache(playerLocation);
@@ -193,35 +203,41 @@ function getNearbyCells(currentCell: cell): cell[] {
 }
 
 function spawnCache(cell: cell): void {
-  let newCache = caches.get(cell);
-  if (!newCache) {
-    newCache = new Geocache(cell);
+  const oldCache = activeCaches.get(cell);
+  if (!oldCache) {
+    const newCache = new Geocache(cell);
     newCache.generateCoins();
-    caches.set(cell, newCache);
+    activeCaches.set(cell, newCache);
+
+    const bounds = leaflet.latLngBounds([
+      [
+        ORIGIN.i + cell.i * TILE_DEGREES,
+        ORIGIN.j + cell.j * TILE_DEGREES,
+      ],
+      [
+        ORIGIN.i + (cell.i + 1) * TILE_DEGREES,
+        ORIGIN.j + (cell.j + 1) * TILE_DEGREES,
+      ],
+    ]);
+
+    const cacheRect = leaflet.rectangle(bounds);
+    cacheRects.set(cell, cacheRect);
+    cacheRect.addTo(map);
+
+    cacheRect.bindPopup(() => {
+      const popupDiv = document.createElement("div");
+      popupDiv.append(newCache.display(playerInventory));
+      popupDiv.append(playerInventory.display(newCache));
+      return popupDiv;
+    }, { keepInView: true });
+    newCache.cachePopup = cacheRect.getPopup();
+  } else {
+    const oldCacheRect = cacheRects.get(cell);
+    if (oldCacheRect) {
+      oldCache.cachePopup = oldCacheRect.getPopup();
+      oldCacheRect.addTo(map);
+    }
   }
-
-  // Convert cell numbers into lat/lng bounds
-  const bounds = leaflet.latLngBounds([
-    [
-      ORIGIN.i + cell.i * TILE_DEGREES,
-      ORIGIN.j + cell.j * TILE_DEGREES,
-    ],
-    [
-      ORIGIN.i + (cell.i + 1) * TILE_DEGREES,
-      ORIGIN.j + (cell.j + 1) * TILE_DEGREES,
-    ],
-  ]);
-
-  const cacheRect = leaflet.rectangle(bounds);
-  cacheRect.addTo(map);
-
-  cacheRect.bindPopup(() => {
-    const popupDiv = document.createElement("div");
-    popupDiv.append(newCache.display(playerInventory));
-    popupDiv.append(playerInventory.display(newCache));
-    return popupDiv;
-  }, { keepInView: true });
-  newCache.cachePopup = cacheRect.getPopup();
 }
 
 function updateInventory(): void {
@@ -248,10 +264,36 @@ function transferCoin(from: Geocache, to: Geocache, geoCoin: coin): void {
 function checkForCaches(): void {
   const visibleCells = getNearbyCells(playerLocation);
   visibleCells.forEach((cell) => {
-    if (
-      luck([cell.i, cell.j, "cacheSpawn"].toString()) < CACHE_SPAWN_PROBABILITY
-    ) {
+    if (activeCaches.has(cell)) {
+      return;
+    }
+    const storedCache = storedCaches.get(cell);
+    if (storedCache) {
+      const newCache = Geocache.fromMomento(storedCache);
+      activeCaches.set(cell, newCache);
+      storedCaches.delete(cell);
       spawnCache(cell);
+      return;
+    }
+    if (luck([cell.i, cell.j, "spawn"].toString()) < CACHE_SPAWN_PROBABILITY) {
+      spawnCache(cell);
+    }
+  });
+}
+
+function cullCaches(): void {
+  activeCaches.forEach((cache) => {
+    if (
+      Math.abs(cache.cell.i - playerLocation.i) > NEIGHBORHOOD_SIZE ||
+      Math.abs(cache.cell.j - playerLocation.j) > NEIGHBORHOOD_SIZE
+    ) {
+      const culledRect = cacheRects.get(cache.cell);
+      if (culledRect) {
+        culledRect.removeFrom(map);
+      }
+      const cacheString: string = cache.toMomento();
+      storedCaches.set(cache.cell, cacheString);
+      activeCaches.delete(cache.cell);
     }
   });
 }
@@ -260,7 +302,8 @@ function movePlayer(newLocation: cell): void {
   playerLocation.i = newLocation.i;
   playerLocation.j = newLocation.j;
   playerMarker.setLatLng(cellToLeaflet(playerLocation));
-  map.setView(cellToLeaflet(playerLocation));
+  cullCaches();
+  map.panTo(cellToLeaflet(playerLocation));
   checkForCaches();
 }
 
