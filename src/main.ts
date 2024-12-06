@@ -163,6 +163,7 @@ const cacheRects: Map<cell, leaflet.Rectangle> = new Map<
   leaflet.Rectangle
 >();
 const storedCaches: Map<cell, string> = new Map<cell, string>();
+let cellHistory: cell[] = [];
 
 const playerLocation: cell = { i: 369894, j: -1220627 };
 let playerInventory: Geocache = new Geocache(playerLocation);
@@ -305,6 +306,7 @@ function movePlayer(newLocation: cell): void {
   playerLocation.i = newLocation.i;
   playerLocation.j = newLocation.j;
   playerInventory.cell = playerLocation;
+  cellHistory.push(playerLocation);
   playerMarker.setLatLng(cellToLeaflet(playerLocation));
   cullCaches();
   map.panTo(cellToLeaflet(playerLocation));
@@ -326,6 +328,7 @@ function resetGame(): void {
   storedCaches.clear();
   playerInventory.coinCount = 0;
   playerInventory.coins = [];
+  cellHistory = [];
   updateInventory();
   localStorage.clear();
   movePlayer(DEFAULT_LOCATION);
@@ -358,6 +361,7 @@ function saveGame(): void {
   });
   localStorage.setItem("caches", JSON.stringify(cacheMomentos));
   localStorage.setItem("inventory", playerInventory.toMomento());
+  localStorage.setItem("history", JSON.stringify(cellHistory));
 }
 
 function loadGame(): void {
@@ -373,6 +377,15 @@ function loadGame(): void {
       activeCaches.set(newCache.cell, newCache);
       spawnCache(newCache.cell);
     });
+  }
+  const historyString = localStorage.getItem("history");
+  if (historyString) {
+    cellHistory = JSON.parse(historyString);
+    playerLocation.i = cellHistory[cellHistory.length - 1].i;
+    playerLocation.j = cellHistory[cellHistory.length - 1].j;
+    playerInventory.cell = playerLocation;
+    playerMarker.setLatLng(cellToLeaflet(playerLocation));
+    map.panTo(cellToLeaflet(playerLocation));
   }
   cullCaches();
 }
