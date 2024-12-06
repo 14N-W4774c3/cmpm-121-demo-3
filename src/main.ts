@@ -307,6 +307,8 @@ function movePlayer(newLocation: cell): void {
   playerLocation.j = newLocation.j;
   playerInventory.cell = playerLocation;
   cellHistory.push(playerLocation);
+  historyLine.addLatLng(cellToLeaflet(playerLocation));
+  historyLine.redraw();
   playerMarker.setLatLng(cellToLeaflet(playerLocation));
   cullCaches();
   map.panTo(cellToLeaflet(playerLocation));
@@ -326,6 +328,7 @@ function resetGame(): void {
   });
   cacheRects.clear();
   storedCaches.clear();
+  historyLine.setLatLngs([]);
   playerInventory.coinCount = 0;
   playerInventory.coins = [];
   cellHistory = [];
@@ -389,6 +392,7 @@ function loadGame(): void {
   }
   cullCaches();
 }
+
 // ----------Event Handlers----------------------------------
 
 geolocationButton.addEventListener("click", () => {
@@ -437,13 +441,22 @@ leaflet
   })
   .addTo(map);
 
+const playerMarker = leaflet.marker(cellToLeaflet(playerLocation));
+playerMarker.bindTooltip("That's you!");
+playerMarker.addTo(map);
+
 if (localStorage.getItem("caches")) {
   loadGame();
 }
 
-const playerMarker = leaflet.marker(cellToLeaflet(playerLocation));
-playerMarker.bindTooltip("That's you!");
-playerMarker.addTo(map);
+let path: leaflet.LatLng[] = [];
+if (cellHistory.length > 1) {
+  path = cellHistory.map((cell) => cellToLeaflet(cell));
+} else {
+  path = [cellToLeaflet(playerLocation)];
+}
+const historyLine = leaflet.polyline(path, { color: "white" });
+historyLine.addTo(map);
 
 globalThis.addEventListener("beforeunload", () => {
   saveGame();
