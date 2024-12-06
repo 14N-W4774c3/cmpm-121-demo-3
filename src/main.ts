@@ -166,6 +166,8 @@ const storedCaches: Map<cell, string> = new Map<cell, string>();
 const playerLocation: cell = { i: 369894, j: -1220627 };
 const playerInventory: Geocache = new Geocache(playerLocation);
 
+let geolocationActive: boolean = false;
+
 // ----------Utility Functions--------------------------------
 
 function cellToLeaflet(cell: cell): leaflet.LatLng {
@@ -326,7 +328,32 @@ function resetGame(): void {
   movePlayer({ i: 0, j: 0 });
 }
 
+function geolocatePlayer(): void {
+  if (!geolocationActive) {
+    return;
+  }
+  navigator.geolocation.getCurrentPosition((position) => {
+    movePlayer({
+      i: Math.floor((position.coords.latitude - ORIGIN.i) / TILE_DEGREES),
+      j: Math.floor((position.coords.longitude - ORIGIN.j) / TILE_DEGREES),
+    });
+  });
+}
+
+function updateGame(): void {
+  geolocatePlayer();
+  requestAnimationFrame(updateGame);
+}
+
 // ----------Event Handlers----------------------------------
+
+geolocationButton.addEventListener("click", () => {
+  if (geolocationActive) {
+    geolocationActive = false;
+    return;
+  }
+  geolocationActive = true;
+});
 
 upButton.addEventListener("click", () => {
   movePlayer({ i: playerLocation.i + 1, j: playerLocation.j });
@@ -372,3 +399,6 @@ playerMarker.addTo(map);
 
 updateInventory();
 checkForCaches();
+if (geolocationActive) {
+  updateGame();
+}
