@@ -307,6 +307,25 @@ function movePlayer(newLocation: cell): void {
   checkForCaches();
 }
 
+function resetGame(): void {
+  const confirm: boolean = globalThis.confirm(
+    "Are you sure you want to reset the game?",
+  );
+  if (!confirm) {
+    return;
+  }
+  activeCaches.clear();
+  cacheRects.forEach((cacheRect) => {
+    cacheRect.removeFrom(map);
+  });
+  cacheRects.clear();
+  storedCaches.clear();
+  playerInventory.coinCount = 0;
+  playerInventory.coins = [];
+  updateInventory();
+  movePlayer({ i: 0, j: 0 });
+}
+
 // ----------Event Handlers----------------------------------
 
 upButton.addEventListener("click", () => {
@@ -324,6 +343,8 @@ leftButton.addEventListener("click", () => {
 rightButton.addEventListener("click", () => {
   movePlayer({ i: playerLocation.i, j: playerLocation.j + 1 });
 });
+
+resetButton.addEventListener("click", resetGame);
 
 // ----------Game Logic--------------------------------------
 
