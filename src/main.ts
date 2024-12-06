@@ -260,6 +260,7 @@ function movePlayer(newLocation: cell): void {
   playerLocation.i = newLocation.i;
   playerLocation.j = newLocation.j;
   playerMarker.setLatLng(cellToLeaflet(playerLocation));
+  map.setView(cellToLeaflet(playerLocation));
   checkForCaches();
 }
 
